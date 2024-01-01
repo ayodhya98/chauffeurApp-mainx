@@ -61,6 +61,8 @@ app.UseMiddleware<ExceptionMiddleware>();
 app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
+//img upload
+app.UseStaticFiles();
 
 app.MapControllers();
 

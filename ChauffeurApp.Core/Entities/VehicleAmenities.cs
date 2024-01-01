@@ -6,5 +6,7 @@
         public long VehicleId { get; set; }
         public Amenities Amenities { get; set; }
         public long AmenityId { get; set; }
+
+      
     }
 }

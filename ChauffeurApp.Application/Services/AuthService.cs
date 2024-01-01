@@ -13,6 +13,8 @@ using Microsoft.AspNetCore.Http;
 using ChauffeurApp.Application.Helper;
 using System.Security.Claims;
 using System.Net;
+using Microsoft.AspNetCore.Hosting;
+
 
 namespace ChauffeurApp.Application.Services
 {
@@ -24,7 +26,8 @@ namespace ChauffeurApp.Application.Services
         private readonly IValidator<ApplicationUser> _validator;
         private readonly IHttpContextAccessor _httpContextAccessor;
         private readonly IEmailService _emailService;
-        public AuthService(UserManager<ApplicationUser> userManager, ITokenService tokenService, IConfiguration config, IValidator<ApplicationUser> validator, IHttpContextAccessor httpContextAccessor, IEmailService emailService)
+        private readonly IHostingEnvironment _hostingEnvironment;
+        public AuthService(UserManager<ApplicationUser> userManager, ITokenService tokenService, IConfiguration config, IValidator<ApplicationUser> validator, IHttpContextAccessor httpContextAccessor, IEmailService emailService, IHostingEnvironment hostingEnvironment)
         {
             _userManager = userManager;
             _tokenService = tokenService;
@@ -32,6 +35,8 @@ namespace ChauffeurApp.Application.Services
             _validator = validator;
             _httpContextAccessor = httpContextAccessor;
             _emailService = emailService;
+            _hostingEnvironment = hostingEnvironment;
+
         }
 
         //Initiating phone number change
@@ -116,20 +121,20 @@ namespace ChauffeurApp.Application.Services
             }
         }
 
-        private void SendTokenToEmail(string emailAddress, string token)
-        {
-            var email = new MimeMessage();
-            email.From.Add(MailboxAddress.Parse(_config.GetSection("EmailUsername").Value));
-            email.To.Add(MailboxAddress.Parse(emailAddress));
-            email.Subject = "Token to confirm change in phone number";
-            email.Body = new TextPart(TextFormat.Html) { Text = token };
+        //private void SendTokenToEmail(string emailAddress, string token)
+        //{
+        //    var email = new MimeMessage();
+        //    email.From.Add(MailboxAddress.Parse(_config.GetSection("EmailUsername").Value));
+        //    email.To.Add(MailboxAddress.Parse(emailAddress));
+        //    email.Subject = "Token to confirm change in phone number";
+        //    email.Body = new TextPart(TextFormat.Html) { Text = token };
 
-            using var smtp = new SmtpClient();
-            smtp.Connect(_config.GetSection("EmailHost").Value, 587, SecureSocketOptions.StartTls);
-            smtp.Authenticate(_config.GetSection("EmailUsername").Value, _config.GetSection("EmailPassword").Value);
-            smtp.Send(email);
-            smtp.Disconnect(true);
-        }
+        //    using var smtp = new SmtpClient();
+        //    smtp.Connect(_config.GetSection("EmailHost").Value, 587, SecureSocketOptions.StartTls);
+        //    smtp.Authenticate(_config.GetSection("EmailUsername").Value, _config.GetSection("EmailPassword").Value);
+        //    smtp.Send(email);
+        //    smtp.Disconnect(true);
+        //}
 
 
         //User registration
@@ -154,8 +159,11 @@ namespace ChauffeurApp.Application.Services
                 Gender = createUserDTO.Gender,
                 UserName = createUserDTO.Email,
                 Email = createUserDTO.Email,
-                TwoFactorEnabled = true
+                TwoFactorEnabled = true,
+                
             };
+
+
 
             var validationResult = await _validator.ValidateAsync(identityUser);
 
@@ -173,12 +181,22 @@ namespace ChauffeurApp.Application.Services
 
             var token = await _userManager.GenerateEmailConfirmationTokenAsync(identityUser);
 
-            var confirmationLink = $"https://yourdomain.com/verify-email?userId={identityUser.Id}&token={WebUtility.UrlEncode(token)}";
+            var confirmationLink = GenerateConfirmationLink(identityUser.Id, token);
+
+
+            //var confirmationLink = $"https://localhost:7202/api/EmailConfirmation/verify-email?userId={identityUser.Id}&token={token}";
 
             var emailSubject = "Confirm your email address";
             var emailMessage = $"Please click <a href=\"{confirmationLink}\">here</a> to confirm your email address.";
 
-            await SendConfirmationEmail(identityUser.Email, emailSubject, emailMessage);
+            
+            EmailDTO emailDTO = new EmailDTO()
+            {
+                To = identityUser.Email,
+                Body = emailMessage,
+                Subject = emailSubject,
+            };
+            _emailService.SendEmail(emailDTO);
 
             var role = await _userManager.AddToRoleAsync(identityUser, createUserDTO.Role.ToString());
 
@@ -188,26 +206,75 @@ namespace ChauffeurApp.Application.Services
             }
             return Result<bool>.Success(true);
         }
-        private async Task SendConfirmationEmail(string emailAddress, string subject, string htmlMessage)
-        {
-            if (string.IsNullOrEmpty(emailAddress))
-            {
-                // Log or throw an exception indicating that the email address is null or empty.
-                // Handle this case according to your application's logic.
-                throw new ArgumentNullException(nameof(emailAddress), "Email address is null or empty.");
-            }
-            var emailMessage = new MimeMessage();
-            emailMessage.From.Add(MailboxAddress.Parse(_config["EmailSettings:EmailUsername"]));
-            emailMessage.To.Add(MailboxAddress.Parse(emailAddress));
-            emailMessage.Subject = subject;
-            emailMessage.Body = new TextPart(TextFormat.Html) { Text = htmlMessage };
 
-            using var smtpClient = new SmtpClient();
-            smtpClient.Connect(_config["EmailSettings:EmailHost"], 587, SecureSocketOptions.StartTls);
-            smtpClient.Authenticate(_config["EmailSettings:EmailUsername"], _config["EmailSettings:EmailPassword"]);
-            await smtpClient.SendAsync(emailMessage);
-            await smtpClient.DisconnectAsync(true);
+        public async Task<Result<bool>> ConfirmPhoneNumber(string userId, string phoneNumber, string token)
+        {
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user == null)
+            {
+                return Result<bool>.Failure("User not found");
+            }
+
+            var result = await _userManager.VerifyChangePhoneNumberTokenAsync(user, token, phoneNumber);
+            if (!result)
+            {
+                return Result<bool>.Failure("Invalid token or phone number");
+            }
+
+            user.PhoneNumberConfirmed = true;
+            var updateResult = await _userManager.UpdateAsync(user);
+
+            if (!updateResult.Succeeded)
+            {
+                return Result<bool>.Failure("Error confirming phone number");
+            }
+
+            return Result<bool>.Success(true);
         }
+
+        private string GenerateConfirmationLink(long userId, string token)
+        {
+            string userIdString = userId.ToString();
+            string baseUrl = GetBaseUrl();
+            return $"{baseUrl}/api/EmailConfirmation/verify-email?userId={userId}&token={token}";
+        }
+
+        private string GetBaseUrl()
+        {
+            string baseUrl;
+
+            if (_hostingEnvironment.IsDevelopment())
+            {
+                //var j = _hostingEnvironment.get
+                baseUrl = "https://localhost:7202";
+            }
+            else
+            {
+                baseUrl = "https://your_production_domain";
+            }
+
+            return baseUrl;
+        }
+        //private async Task SendConfirmationEmail(string emailAddress, string subject, string htmlMessage)
+        //{
+        //    if (string.IsNullOrEmpty(emailAddress))
+        //    {
+        //        // Log or throw an exception indicating that the email address is null or empty.
+        //        // Handle this case according to your application's logic.
+        //        throw new ArgumentNullException(nameof(emailAddress), "Email address is null or empty.");
+        //    }
+        //    var emailMessage = new MimeMessage();
+        //    emailMessage.From.Add(MailboxAddress.Parse(_config["EmailSettings:EmailUsername"]));
+        //    emailMessage.To.Add(MailboxAddress.Parse(emailAddress));
+        //    emailMessage.Subject = subject;
+        //    emailMessage.Body = new TextPart(TextFormat.Html) { Text = htmlMessage };
+
+        //    using var smtpClient = new SmtpClient();
+        //    smtpClient.Connect(_config["EmailSettings:EmailHost"], 587, SecureSocketOptions.StartTls);
+        //    smtpClient.Authenticate(_config["EmailSettings:EmailUsername"], _config["EmailSettings:EmailPassword"]);
+        //    await smtpClient.SendAsync(emailMessage);
+        //    await smtpClient.DisconnectAsync(true);
+        //}
 
 
         public async Task<Result<bool>> VerifyEmail(string userId, string token)
@@ -293,6 +360,7 @@ namespace ChauffeurApp.Application.Services
                 Console.WriteLine(ex);
                 return Result<string>.Failure("An error occurred while uploading the file.");
             }
+
         }
     }
 }

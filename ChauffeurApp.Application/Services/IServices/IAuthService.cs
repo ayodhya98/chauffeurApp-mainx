@@ -11,5 +11,6 @@ namespace ChauffeurApp.Application.Services.IServices
         Task<Result<bool>> ResetPhoneNumber(ResetPhoneNumberDTO resetPhoneNumberDTO);
         Task<Result<string>> UploadFile(IFormFile _IFormFile);
         Task<Result<bool>> VerifyEmail(string userId, string token);
+        Task<Result<bool>> ConfirmPhoneNumber(string userId, string phoneNumber, string token);
     }
 }

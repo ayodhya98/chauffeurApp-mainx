@@ -22,5 +22,6 @@ namespace ChauffeurApp.Core.Entities
         public long? TypeID { get; set; }
         public VehicleType? VehicleType { get; set;}
         public ICollection<VehicleAmenities>? VehicleAmenities { get; set; }
+        public ICollection<VehicleImages>? vehicleImages { get; set; }
     }
 }

@@ -1,4 +1,5 @@
 ﻿using ChauffeurApp.Application.DTOs;
+using ChauffeurApp.Application.Services;
 using ChauffeurApp.Application.Services.IServices;
 using Microsoft.AspNetCore.Mvc;
 
@@ -25,5 +26,13 @@ namespace ChauffeurApp.API.Controllers
         {
             return HandleResult(await _vehicleService.FilterVehicles(typeId, seatingCapacity, brandId));  
         }
+        [HttpPost]
+        [Route("uploadfiles")]
+        public async Task<IActionResult> UploadFiles(List<IFormFile> _IFormFiles)
+        {
+            return HandleResult(await _vehicleService.UploadFiles(_IFormFiles));
+        }
+
+
     }
 }

@@ -41,7 +41,16 @@ namespace ChauffeurApp.DataAccess.Persistence
                 .WithMany(pc => pc.VehicleAmenities)
                 .HasForeignKey(p => p.AmenityId);
 
+            builder.Entity<Vehicle>()
+                .HasMany(v => v.vehicleImages)
+                .WithOne(v => v.Vehicle)
+                .HasForeignKey(v => v.VehicleID)
+                .IsRequired(false);
+                
+
+
         }
+        public DbSet<VehicleImages> Vimages { get; set; }
         public DbSet<Brand> Brands { get; set; }
         public DbSet<VehicleType> VehicleTypes { get; set; }
         public DbSet<Vehicle> Vehicles { get; set; }

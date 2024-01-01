@@ -60,6 +60,35 @@ namespace ChauffeurApp.API.Controllers
             return HandleResult(await _authService.UploadFile(_IFormFile));
         }
 
+        [HttpPost("verify-email")]
+        public async Task<IActionResult> VerifyEmail([FromQuery] string userId, [FromQuery] string token)
+        {
+            var result = await _authService.VerifyEmail(userId, token);
+
+            if (result.IsSuccess && result.Value is bool && (bool)(object)result.Value == true)
+            {
+                return Ok("Email verified successfully");
+            }
+            else
+            {
+                return BadRequest("Email verification failed");
+            }
+        }
+
+        [HttpPost("verify-phone")]
+        public async Task<IActionResult> ConfirmPhoneNumber([FromQuery] string userId, [FromQuery] string phoneNumber, [FromQuery] string token)
+        {
+            var result = await _authService.ConfirmPhoneNumber(userId, phoneNumber, token);
+
+            if (result.IsSuccess && result.Value == true)
+            {
+                return Ok("Phone number verified successfully");
+            }
+            else
+            {
+                return BadRequest("Phone number verification failed");
+            }
+        }
     }
 }
 

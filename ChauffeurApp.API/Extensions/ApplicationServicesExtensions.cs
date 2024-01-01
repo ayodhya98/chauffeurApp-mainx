@@ -22,6 +22,7 @@ namespace ChauffeurApp.API.Extensions
             services.AddScoped<IClaimService, ClaimService>();
             services.AddScoped<IEmailService, EmailService>();
             services.AddScoped<IVehicleService, VehicleService>();
+            services.AddTransient<IFileManager, FileManager>();
 
             return services;
         }
